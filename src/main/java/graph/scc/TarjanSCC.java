@@ -1,11 +1,14 @@
 package graph.scc;
 
 import graph.model.Graph;
+import graph.util.Metrics;
 
 import java.util.*;
 
 public class TarjanSCC {
     private final Graph graph;
+    private final Metrics metrics;
+
     private final int[] ids;
     private final int[] low;
     private final boolean[] onStack;
@@ -14,8 +17,9 @@ public class TarjanSCC {
 
     private int id = 0;
 
-    public TarjanSCC(Graph graph) {
+    public TarjanSCC(Graph graph, Metrics metrics) {
         this.graph = graph;
+        this.metrics = metrics;
         int n = graph.size();
         ids = new int[n];
         low = new int[n];
@@ -31,11 +35,14 @@ public class TarjanSCC {
     }
 
     private void dfs(int at) {
+        metrics.incCounter("dfs_visits");
+
         stack.push(at);
         onStack[at] = true;
         ids[at] = low[at] = id++;
 
         for (var e : graph.getAdj().get(at)) {
+            metrics.incCounter("dfs_edges");
             int to = e.v;
             if (ids[to] == -1) {
                 dfs(to);
@@ -44,7 +51,6 @@ public class TarjanSCC {
                 low[at] = Math.min(low[at], ids[to]);
             }
         }
-
 
         if (ids[at] == low[at]) {
             List<Integer> scc = new ArrayList<>();

@@ -1,8 +1,12 @@
 package graph.scc;
 
 import graph.model.Graph;
+import graph.util.Metrics;
+import graph.util.SimpleMetrics;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TarjanSCCTest {
@@ -18,7 +22,8 @@ public class TarjanSCCTest {
         g.addEdge(5, 6, 5);
         g.addEdge(6, 7, 1);
 
-        TarjanSCC tarjan = new TarjanSCC(g);
+        Metrics metrics = new SimpleMetrics();
+        TarjanSCC tarjan = new TarjanSCC(g, metrics);
         List<List<Integer>> comps = tarjan.run();
 
         assertEquals(6, comps.size());

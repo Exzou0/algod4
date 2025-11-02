@@ -30,4 +30,13 @@ public class Graph {
     public boolean isDirected() {
         return directed;
     }
+
+    public int edgeCount() {
+        int count = 0;
+        for (var edges : adj.values()) {
+            count += edges.size();
+        }
+        return count;
+    }
+
 }

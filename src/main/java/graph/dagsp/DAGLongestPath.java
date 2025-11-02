@@ -2,6 +2,7 @@ package graph.dagsp;
 
 import graph.model.Edge;
 import graph.model.Graph;
+import graph.util.Metrics;
 
 import java.util.*;
 
@@ -10,10 +11,11 @@ public class DAGLongestPath {
     private final Graph dag;
     private final double[] dist;
     private final int[] parent;
-    private long relaxations = 0;
+    private final Metrics metrics;
 
-    public DAGLongestPath(Graph dag) {
+    public DAGLongestPath(Graph dag, Metrics metrics) {
         this.dag = dag;
+        this.metrics = metrics;
         this.dist = new double[dag.size()];
         this.parent = new int[dag.size()];
         Arrays.fill(dist, Double.NEGATIVE_INFINITY);
@@ -21,18 +23,23 @@ public class DAGLongestPath {
     }
 
     public void compute(List<Integer> topoOrder, int source) {
+        metrics.startTimer();
         dist[source] = 0;
+
         for (int u : topoOrder) {
             if (dist[u] == Double.NEGATIVE_INFINITY) continue;
+
             for (Edge e : dag.getAdj().get(u)) {
                 double newDist = dist[u] + e.w;
                 if (newDist > dist[e.v]) {
                     dist[e.v] = newDist;
                     parent[e.v] = u;
-                    relaxations++;
+                    metrics.incCounter("relaxations");
                 }
             }
         }
+
+        metrics.stopTimer();
     }
 
     public double getMaxDistance() {
@@ -57,6 +64,6 @@ public class DAGLongestPath {
     }
 
     public long getRelaxations() {
-        return relaxations;
+        return metrics.getCounter("relaxations");
     }
 }

@@ -1,4 +1,3 @@
-
 import graph.model.Graph;
 import graph.model.Edge;
 import graph.scc.TarjanSCC;
@@ -7,92 +6,99 @@ import graph.topo.TopoSort;
 import graph.dagsp.DAGShortestPath;
 import graph.dagsp.DAGLongestPath;
 import graph.util.GraphLoader;
+import graph.util.Metrics;
+import graph.util.SimpleMetrics;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        File file = new File("data/medium1.json");
-        System.out.println("File: " + file.getName());
+        File dataDir = new File("data");
+        File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".json"));
 
-        //Load graph
-        Graph g = GraphLoader.loadFromJson(file.getPath());
-        System.out.println("Graph loaded. Vertices: " + g.size());
-
-        // Run Tarjan SCC
-        TarjanSCC tarjan = new TarjanSCC(g);
-        long t1 = System.nanoTime();
-        List<List<Integer>> sccs = tarjan.run();
-        long t2 = System.nanoTime();
-        System.out.printf("SCCs found: %d (time: %.3f ms)%n", sccs.size(), (t2 - t1) / 1e6);
-        for (int i = 0; i < sccs.size(); i++) {
-            System.out.printf("  Component %d: %s%n", i, sccs.get(i));
+        if (files == null || files.length == 0) {
+            System.err.println("No .json files found in /data/");
+            return;
         }
 
-        // Build condensation DAG
-        CondensationGraph cond = new CondensationGraph(g, sccs);
-        Graph dag = cond.getDAG();
-        System.out.println("\nCondensation DAG built with " + dag.size() + " nodes");
+        try (FileWriter csv = new FileWriter("data/results.csv")) {
+            csv.write("Dataset,V,E,Tarjan(ms),DFS,Topo(ms),Push,Pop,SP(ms),LP(ms),Relax\n");
 
-        // Print DAG edges
-        System.out.println("DAG edges:");
-        for (int u = 0; u < dag.size(); u++) {
-            for (Edge e : dag.getAdj().get(u)) {
-                System.out.printf("  %d → %d (w=%d)%n", e.u, e.v, e.w);
+            System.out.printf("%-15s | %8s | %6s | %10s | %4s | %9s | %5s | %5s | %7s | %7s | %6s%n",
+                    "Dataset", "V", "E", "Tarjan(ms)", "DFS", "Topo(ms)",
+                    "Push", "Pop", "SP(ms)", "LP(ms)", "Relax");
+            System.out.println("----------------------------------------------------------------------------------------------------------");
+
+            for (File file : files) {
+                Graph g = GraphLoader.loadFromJson(file.getPath());
+                int V = g.size();
+                int E = g.edgeCount();
+
+                // Tarjan SCC
+                Metrics sccMetrics = new SimpleMetrics();
+                TarjanSCC tarjan = new TarjanSCC(g, sccMetrics);
+                sccMetrics.startTimer();
+                List<List<Integer>> sccs = tarjan.run();
+                sccMetrics.stopTimer();
+
+                // Condensation + Topo
+                CondensationGraph cond = new CondensationGraph(g, sccs);
+                Graph dag = cond.getDAG();
+
+                Metrics topoMetrics = new SimpleMetrics();
+                List<Integer> topo = TopoSort.kahnSort(dag, topoMetrics);
+
+                // Autosource
+                int[] indeg = new int[dag.size()];
+                for (int u = 0; u < dag.size(); u++) {
+                    for (Edge e : dag.getAdj().get(u)) indeg[e.v]++;
+                }
+                int source = 0;
+                for (int i = 0; i < indeg.length; i++)
+                    if (indeg[i] == 0) { source = i; break; }
+
+                // DAG Shortest Path
+                Metrics spMetrics = new SimpleMetrics();
+                DAGShortestPath sp = new DAGShortestPath(dag, source, spMetrics);
+                sp.compute(topo);
+
+                // DAG Longest Path
+                Metrics lpMetrics = new SimpleMetrics();
+                DAGLongestPath lp = new DAGLongestPath(dag, lpMetrics);
+                lp.compute(topo, source);
+
+                System.out.printf("%-15s | %8d | %6d | %10.3f | %4d | %9.3f | %5d | %5d | %7.3f | %7.3f | %6d%n",
+                        file.getName(), V, E,
+                        sccMetrics.getTimeMs(),
+                        sccMetrics.getCounter("dfs_visits"),
+                        topoMetrics.getTimeMs(),
+                        topoMetrics.getCounter("pushes"),
+                        topoMetrics.getCounter("pops"),
+                        spMetrics.getTimeMs(),
+                        lpMetrics.getTimeMs(),
+                        spMetrics.getCounter("relaxations"));
+
+                csv.write(String.format(Locale.US,
+                        "%s,%d,%d,%.3f,%d,%.3f,%d,%d,%.3f,%.3f,%d%n",
+                        file.getName(), V, E,
+                        sccMetrics.getTimeMs(),
+                        sccMetrics.getCounter("dfs_visits"),
+                        topoMetrics.getTimeMs(),
+                        topoMetrics.getCounter("pushes"),
+                        topoMetrics.getCounter("pops"),
+                        spMetrics.getTimeMs(),
+                        lpMetrics.getTimeMs(),
+                        spMetrics.getCounter("relaxations")));
             }
+
+
+            System.out.println("\nResults saved to results.csv");
+        } catch (IOException e) {
+            System.err.println("Error writing to results.csv: " + e.getMessage());
         }
-
-        int[] indeg = new int[dag.size()];
-        for (int u = 0; u < dag.size(); u++) {
-            for (Edge e : dag.getAdj().get(u)) {
-                indeg[e.v]++;
-            }
-        }
-
-        int source = -1;
-        for (int i = 0; i < dag.size(); i++) {
-            if (indeg[i] == 0) {
-                source = i;
-                break;
-            }
-        }
-        if (source == -1) source = 0;
-        System.out.println("\nAuto-selected source component: " + source);
-
-        // Topological order
-        List<Integer> order = TopoSort.kahnSort(dag);
-        System.out.println("Topological order: " + order);
-
-        // Shortest Path in DAG
-        long startSP = System.nanoTime();
-        DAGShortestPath sp = new DAGShortestPath(dag, source);
-        sp.compute(order);
-        long endSP = System.nanoTime();
-
-        System.out.println("\nShortest paths from component " + source + ":");
-        double[] dist = sp.getDistances();
-        for (int i = 0; i < dist.length; i++) {
-            System.out.printf("  to %d = %s%n", i, (Double.isInfinite(dist[i]) ? "∞" : dist[i]));
-        }
-        System.out.printf("Relaxations: %d, Time: %.3f ms%n", sp.getRelaxations(), (endSP - startSP) / 1e6);
-
-        //  Longest Path
-        long startLP = System.nanoTime();
-        DAGLongestPath lp = new DAGLongestPath(dag);
-        lp.compute(order, source);
-        long endLP = System.nanoTime();
-
-        System.out.println("\nCritical path: " + lp.reconstructCriticalPath());
-        System.out.println("Critical length: " + lp.getMaxDistance());
-        System.out.printf("Relaxations: %d, Time: %.3f ms%n", lp.getRelaxations(), (endLP - startLP) / 1e6);
-
-
-        double totalMs = (t2 - t1 + endSP - startSP + endLP - startLP) / 1e6;
-        System.out.printf("%n✅ Summary:%n");
-        System.out.printf("  SCC time: %.3f ms%n", (t2 - t1) / 1e6);
-        System.out.printf("  Shortest Path: %.3f ms%n", (endSP - startSP) / 1e6);
-        System.out.printf("  Longest Path: %.3f ms%n", (endLP - startLP) / 1e6);
-        System.out.printf("  Total time: %.3f ms%n", totalMs);
     }
 }

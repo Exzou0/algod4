@@ -2,6 +2,8 @@ package graph.dagsp;
 
 import graph.model.Graph;
 import graph.topo.TopoSort;
+import graph.util.Metrics;
+import graph.util.SimpleMetrics;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -24,12 +26,15 @@ public class DAGSPTest {
         dag.addEdge(3, 4, -1);
         dag.addEdge(4, 5, -2);
 
-        List<Integer> topo = TopoSort.kahnSort(dag);
+        Metrics topoMetrics = new SimpleMetrics();
+        List<Integer> topo = TopoSort.kahnSort(dag, topoMetrics);
 
-        DAGShortestPath sp = new DAGShortestPath(dag, 0);
+        Metrics spMetrics = new SimpleMetrics();
+        DAGShortestPath sp = new DAGShortestPath(dag, 0, spMetrics);
         sp.compute(topo);
 
-        DAGLongestPath lp = new DAGLongestPath(dag);
+        Metrics lpMetrics = new SimpleMetrics();
+        DAGLongestPath lp = new DAGLongestPath(dag, lpMetrics);
         lp.compute(topo, 0);
 
         assertTrue(sp.getDistances()[5] < Double.POSITIVE_INFINITY);
