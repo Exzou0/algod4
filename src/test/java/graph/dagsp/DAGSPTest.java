@@ -40,4 +40,18 @@ public class DAGSPTest {
         assertTrue(sp.getDistances()[5] < Double.POSITIVE_INFINITY);
         assertTrue(lp.getMaxDistance() > Double.NEGATIVE_INFINITY);
     }
+
+    @Test
+    void handlesGraphWithoutEdges() {
+        Graph dag = new Graph(3, true);
+        List<Integer> topo = TopoSort.kahnSort(dag, new SimpleMetrics());
+
+        DAGShortestPath sp = new DAGShortestPath(dag, 0, new SimpleMetrics());
+        sp.compute(topo);
+
+        assertEquals(0.0, sp.getDistances()[0]);
+        assertTrue(Double.isInfinite(sp.getDistances()[1]));
+        assertTrue(Double.isInfinite(sp.getDistances()[2]));
+    }
+
 }

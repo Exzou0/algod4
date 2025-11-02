@@ -23,4 +23,21 @@ public class TopoSortTest {
         assertTrue(order.indexOf(1) < order.indexOf(3));
         assertTrue(order.indexOf(3) < order.indexOf(4));
     }
+
+    @Test
+    void handlesEmptyDag() {
+        Graph dag = new Graph(0, true);
+        List<Integer> topo = TopoSort.kahnSort(dag, new SimpleMetrics());
+        assertTrue(topo.isEmpty());
+    }
+
+    @Test
+    void handlesSimpleChain() {
+        Graph dag = new Graph(3, true);
+        dag.addEdge(0, 1, 1);
+        dag.addEdge(1, 2, 1);
+        List<Integer> topo = TopoSort.kahnSort(dag, new SimpleMetrics());
+        assertEquals(List.of(0, 1, 2), topo);
+    }
+
 }

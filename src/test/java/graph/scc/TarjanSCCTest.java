@@ -29,4 +29,21 @@ public class TarjanSCCTest {
         assertEquals(6, comps.size());
         assertTrue(comps.stream().anyMatch(c -> c.contains(1) && c.contains(2) && c.contains(3)));
     }
+
+    @Test
+    void handlesEmptyGraph() {
+        Graph g = new Graph(0, true);
+        TarjanSCC tarjan = new TarjanSCC(g, new SimpleMetrics());
+        List<List<Integer>> comps = tarjan.run();
+        assertTrue(comps.isEmpty(), "Empty graph should have no SCCs");
+    }
+
+    @Test
+    void handlesSingleVertexGraph() {
+        Graph g = new Graph(1, true);
+        TarjanSCC tarjan = new TarjanSCC(g, new SimpleMetrics());
+        List<List<Integer>> comps = tarjan.run();
+        assertEquals(1, comps.size());
+        assertEquals(List.of(0), comps.get(0));
+    }
 }
